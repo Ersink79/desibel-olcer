@@ -38,47 +38,11 @@
         let microphone;
         let scriptProcessor;
 
-        let calibrationOffset = 40; // -40 dB'lik bir ofseti kalibre etmek için
+        let calibrationOffset = 40; // Kalibrasyon için ofset
 
         startButton.addEventListener('click', async () => {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             analyser = audioContext.createAnalyser();
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             microphone = audioContext.createMediaStreamSource(stream);
-            scriptProcessor = audioContext.createScriptProcessor(256, 1, 1);
-
-            analyser.smoothingTimeConstant = 0.8;
-            analyser.fftSize = 1024;
-
-            microphone.connect(analyser);
-            analyser.connect(scriptProcessor);
-            scriptProcessor.connect(audioContext.destination);
-
-            scriptProcessor.onaudioprocess = () => {
-                const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                analyser.getByteFrequencyData(dataArray);
-                const sum = dataArray.reduce((a, b) => a + b, 0);
-                const average = sum / dataArray.length;
-
-                // Ortalama değeri desibele çevir ve kalibrasyon uygula
-                const dB = Math.max(10 * Math.log10(average) - calibrationOffset, 0);
-                dbValue.textContent = `${dB.toFixed(2)} dB`;
-            };
-
-            startButton.disabled = true;
-            stopButton.disabled = false;
-        });
-
-        stopButton.addEventListener('click', () => {
-            scriptProcessor.disconnect();
-            analyser.disconnect();
-            microphone.disconnect();
-            audioContext.close();
-
-            startButton.disabled = false;
-            stopButton.disabled = true;
-            dbValue.textContent = '0 dB';
-        });
-    </script>
-</body>
-</html>
+            scriptProcessor = audioContext.createScriptProcessor(256, 1, 
