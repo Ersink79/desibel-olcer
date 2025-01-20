@@ -15,6 +15,10 @@
             font-weight: bold;
             color: green;
         }
+        #results {
+            margin-top: 20px;
+            font-size: 1.2em;
+        }
         button {
             font-size: 1.2em;
             margin-top: 20px;
@@ -27,12 +31,18 @@
     <div id="db-value">0 dB</div>
     <button id="start">Başlat</button>
     <button id="stop" disabled>Dur</button>
+    <div id="results">
+        <p id="max-db">Maksimum: 0 dB</p>
+        <p id="avg-db">Ortalama: 0 dB</p>
+    </div>
     <div id="error-message" style="color: red; margin-top: 20px;"></div>
 
     <script>
         const startButton = document.getElementById('start');
         const stopButton = document.getElementById('stop');
         const dbValue = document.getElementById('db-value');
+        const maxDbElement = document.getElementById('max-db');
+        const avgDbElement = document.getElementById('avg-db');
         const errorMessage = document.getElementById('error-message');
 
         let audioContext;
@@ -41,9 +51,19 @@
         let scriptProcessor;
 
         let calibrationOffset = 40; // Kalibrasyon için ofset
+        let maxDb = -Infinity;
+        let sumDb = 0;
+        let countDb = 0;
 
         startButton.addEventListener('click', async () => {
             try {
+                // Başlatıldığı anda değerleri sıfırla
+                maxDb = -Infinity;
+                sumDb = 0;
+                countDb = 0;
+                maxDbElement.textContent = "Maksimum: 0 dB";
+                avgDbElement.textContent = "Ortalama: 0 dB";
+
                 // AudioContext ve analizör başlatılıyor
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 analyser = audioContext.createAnalyser();
@@ -72,7 +92,12 @@
 
                     // dB hesaplaması
                     const dB = 20 * Math.log10(rms) + calibrationOffset;
-                    dbValue.textContent = `${dB.toFixed(2)} dB`;
+                    if (!isNaN(dB)) {
+                        maxDb = Math.max(maxDb, dB);
+                        sumDb += dB;
+                        countDb++;
+                        dbValue.textContent = `${dB.toFixed(2)} dB`;
+                    }
                 };
 
                 startButton.disabled = true;
@@ -92,6 +117,12 @@
 
             startButton.disabled = false;
             stopButton.disabled = true;
+
+            // Ortalama hesaplama
+            const avgDb = countDb > 0 ? (sumDb / countDb) : 0;
+            maxDbElement.textContent = `Maksimum: ${maxDb.toFixed(2)} dB`;
+            avgDbElement.textContent = `Ortalama: ${avgDb.toFixed(2)} dB`;
+
             dbValue.textContent = '0 dB';
         });
     </script>
