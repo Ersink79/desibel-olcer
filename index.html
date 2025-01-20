@@ -27,11 +27,13 @@
     <div id="db-value">0 dB</div>
     <button id="start">Başlat</button>
     <button id="stop" disabled>Dur</button>
+    <div id="error-message" style="color: red; margin-top: 20px;"></div>
 
     <script>
         const startButton = document.getElementById('start');
         const stopButton = document.getElementById('stop');
         const dbValue = document.getElementById('db-value');
+        const errorMessage = document.getElementById('error-message');
 
         let audioContext;
         let analyser;
@@ -41,8 +43,57 @@
         let calibrationOffset = 40; // Kalibrasyon için ofset
 
         startButton.addEventListener('click', async () => {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            analyser = audioContext.createAnalyser();
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            microphone = audioContext.createMediaStreamSource(stream);
-            scriptProcessor = audioContext.createScriptProcessor(256, 1, 
+            try {
+                // AudioContext ve analizör başlatılıyor
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                microphone = audioContext.createMediaStreamSource(stream);
+                scriptProcessor = audioContext.createScriptProcessor(256, 1, 1);
+
+                analyser.smoothingTimeConstant = 0.8;
+                analyser.fftSize = 2048;
+
+                microphone.connect(analyser);
+                analyser.connect(scriptProcessor);
+                scriptProcessor.connect(audioContext.destination);
+
+                scriptProcessor.onaudioprocess = () => {
+                    const dataArray = new Uint8Array(analyser.fftSize);
+                    analyser.getByteTimeDomainData(dataArray);
+
+                    // RMS hesaplaması
+                    let sum = 0;
+                    for (let i = 0; i < dataArray.length; i++) {
+                        const value = (dataArray[i] - 128) / 128; // Normalize
+                        sum += value * value;
+                    }
+                    const rms = Math.sqrt(sum / dataArray.length);
+
+                    // dB hesaplaması
+                    const dB = 20 * Math.log10(rms) + calibrationOffset;
+                    dbValue.textContent = `${dB.toFixed(2)} dB`;
+                };
+
+                startButton.disabled = true;
+                stopButton.disabled = false;
+                errorMessage.textContent = ""; // Hata mesajını temizle
+            } catch (error) {
+                errorMessage.textContent = "Mikrofon erişimi reddedildi veya bir hata oluştu.";
+                console.error("Hata:", error);
+            }
+        });
+
+        stopButton.addEventListener('click', () => {
+            if (scriptProcessor) scriptProcessor.disconnect();
+            if (analyser) analyser.disconnect();
+            if (microphone) microphone.disconnect();
+            if (audioContext) audioContext.close();
+
+            startButton.disabled = false;
+            stopButton.disabled = true;
+            dbValue.textContent = '0 dB';
+        });
+    </script>
+</body>
+</html>
