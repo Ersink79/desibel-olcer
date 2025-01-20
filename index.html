@@ -3,95 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web'de Desibel Ölçümü</title>
+    <title>Desibel Ölçer</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             text-align: center;
             margin-top: 50px;
         }
-        .decibel {
-            font-size: 48px;
-            color: #333;
+        #db-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: green;
+        }
+        button {
+            font-size: 1.2em;
+            margin-top: 20px;
+            padding: 10px 20px;
         }
     </style>
 </head>
 <body>
-    <h1>Mikrofon Desibel Ölçer</h1>
-    <p class="decibel">Desibel: 0 dB</p>
-    <button id="startButton">Başlat</button>
-    <button id="stopButton" disabled>Dur</button>
+    <h1>Desibel Ölçer</h1>
+    <div id="db-value">0 dB</div>
+    <button id="start">Başlat</button>
+    <button id="stop" disabled>Dur</button>
 
     <script>
-        const startButton = document.getElementById('startButton');
-        const stopButton = document.getElementById('stopButton');
-        const decibelDisplay = document.querySelector('.decibel');
+        const startButton = document.getElementById('start');
+        const stopButton = document.getElementById('stop');
+        const dbValue = document.getElementById('db-value');
 
         let audioContext;
         let analyser;
         let microphone;
-        let javascriptNode;
-        let isRunning = false;
+        let scriptProcessor;
+
+        let calibrationOffset = 40; // -40 dB'lik bir ofseti kalibre etmek için
 
         startButton.addEventListener('click', async () => {
-            if (isRunning) return;
-            isRunning = true;
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioContext.createAnalyser();
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            microphone = audioContext.createMediaStreamSource(stream);
+            scriptProcessor = audioContext.createScriptProcessor(256, 1, 1);
 
-            try {
-                // Mikrofon erişimi talebi
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            analyser.smoothingTimeConstant = 0.8;
+            analyser.fftSize = 1024;
 
-                // Audio Context oluştur
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                analyser = audioContext.createAnalyser();
-                microphone = audioContext.createMediaStreamSource(stream);
-                javascriptNode = audioContext.createScriptProcessor(2048, 1, 1);
+            microphone.connect(analyser);
+            analyser.connect(scriptProcessor);
+            scriptProcessor.connect(audioContext.destination);
 
-                analyser.smoothingTimeConstant = 0.8;
-                analyser.fftSize = 2048;
+            scriptProcessor.onaudioprocess = () => {
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                analyser.getByteFrequencyData(dataArray);
+                const sum = dataArray.reduce((a, b) => a + b, 0);
+                const average = sum / dataArray.length;
 
-                microphone.connect(analyser);
-                analyser.connect(javascriptNode);
-                javascriptNode.connect(audioContext.destination);
+                // Ortalama değeri desibele çevir ve kalibrasyon uygula
+                const dB = Math.max(10 * Math.log10(average) - calibrationOffset, 0);
+                dbValue.textContent = `${dB.toFixed(2)} dB`;
+            };
 
-                javascriptNode.onaudioprocess = () => {
-                    const array = new Uint8Array(analyser.frequencyBinCount);
-                    analyser.getByteTimeDomainData(array);
-
-                    let sum = 0;
-                    for (let i = 0; i < array.length; i++) {
-                        const amplitude = (array[i] - 128) / 128; // Normalize edilmiş değer
-                        sum += amplitude * amplitude;
-                    }
-                    const rms = Math.sqrt(sum / array.length); // RMS hesaplama
-                    const decibel = 20 * Math.log10(rms); // Desibel değeri
-
-                    // Ekranda göster
-                    decibelDisplay.textContent = `Desibel: ${decibel.toFixed(2)} dB`;
-                };
-
-                startButton.disabled = true;
-                stopButton.disabled = false;
-            } catch (error) {
-                console.error('Mikrofona erişim başarısız:', error);
-                alert('Mikrofona erişim izni vermelisiniz!');
-                isRunning = false;
-            }
+            startButton.disabled = true;
+            stopButton.disabled = false;
         });
 
         stopButton.addEventListener('click', () => {
-            if (!isRunning) return;
-            isRunning = false;
-
-            // Mikrofonu kapat
-            javascriptNode.disconnect();
+            scriptProcessor.disconnect();
             analyser.disconnect();
             microphone.disconnect();
             audioContext.close();
 
             startButton.disabled = false;
             stopButton.disabled = true;
-            decibelDisplay.textContent = 'Desibel: 0 dB';
+            dbValue.textContent = '0 dB';
         });
     </script>
 </body>
