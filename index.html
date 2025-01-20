@@ -51,14 +51,14 @@
         let scriptProcessor;
 
         let calibrationOffset = 40; // Kalibrasyon için ofset
-        let maxDb = -Infinity;
+        let maxDb = 0;
         let sumDb = 0;
         let countDb = 0;
 
         startButton.addEventListener('click', async () => {
             try {
                 // Başlatıldığı anda değerleri sıfırla
-                maxDb = -Infinity;
+                maxDb = 0;
                 sumDb = 0;
                 countDb = 0;
                 maxDbElement.textContent = "Maksimum: 0 dB";
@@ -91,13 +91,17 @@
                     const rms = Math.sqrt(sum / dataArray.length);
 
                     // dB hesaplaması
-                    const dB = 20 * Math.log10(rms) + calibrationOffset;
-                    if (!isNaN(dB)) {
-                        maxDb = Math.max(maxDb, dB);
-                        sumDb += dB;
-                        countDb++;
-                        dbValue.textContent = `${dB.toFixed(2)} dB`;
+                    let dB = 20 * Math.log10(rms) + calibrationOffset;
+
+                    // Eksi değer kontrolü ve sessizlik durumunda 0 dB
+                    if (isNaN(dB) || dB < 0) {
+                        dB = 0;
                     }
+
+                    maxDb = Math.max(maxDb, dB);
+                    sumDb += dB;
+                    countDb++;
+                    dbValue.textContent = `${dB.toFixed(2)} dB`;
                 };
 
                 startButton.disabled = true;
